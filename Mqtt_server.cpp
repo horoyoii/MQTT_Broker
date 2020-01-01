@@ -1,52 +1,7 @@
 #include"Mqtt_server.hpp"
+#include "Connection.hpp"
 
 using boost::asio::ip::tcp;
-
-class session
-{
-public:
-  session(boost::asio::io_service& io_service)
-  //boost 1.66이후 (Ubuntu 18.10 이후) 버전의 경우 io_context를 사용
-  //session(boost::asio::io_context& io_service)
-    : socket_(io_service)
-  {
-  }
- 
-  tcp::socket& socket()
-  {
-    return socket_;
-  }
- 
-  void start()
-  {
-    //client로부터 연결됨
-    cout << "connected" << endl;
-    //client로부터 비동기 read 실행
-    socket_.async_read_some(boost::asio::buffer(data_, max_length),
-        boost::bind(&session::handle_read, this,
-          boost::asio::placeholders::error,
-          boost::asio::placeholders::bytes_transferred));
-  }
- 
-private:
-  void handle_read(const boost::system::error_code& error,
-      size_t bytes_transferred)
-  {
-    if (!error)
-    {
-      cout << data_ << endl;
-    }
-    else
-    {
-      delete this;
-    }
-  }
- 
-  tcp::socket socket_;
-  enum { max_length = 1024 };
-  char data_[max_length];
-};
-
 
 
 MqttServer::MqttServer(int port)
@@ -73,7 +28,8 @@ void MqttServer::doAccept(){
                                 if(!error){
                                     // when new connection comes...
                                     std::cout<<"new connection comes"<<std::endl;                  
-
+                                    
+                                    std::make_shared<Connection>(std::move(_socket))->start();
                                 }
 
                             

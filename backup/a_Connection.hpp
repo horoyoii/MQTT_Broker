@@ -78,7 +78,7 @@ private:
     void handle_write(const boost::system::error_code& error){
         if (!error){
             std::cout<<"handle write() called after send the data"<<std::endl;
-            
+            sleep(10); 
             socket_.async_read_some(boost::asio::buffer(data_, max_length),
                 boost::bind(&Connection::handle_read, this,
                 boost::asio::placeholders::error,

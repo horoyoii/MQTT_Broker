@@ -7,10 +7,12 @@
 #include <sys/socket.h>
 #include <sys/epoll.h>
  
-#include <string.h>
+#include <string>
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <string>
+#include <iostream>
 
 #include "Message.hpp"
 
@@ -19,6 +21,11 @@
 [epoll server 구현] - NON_BLOCKING 모드 
 https://github.com/hnakamur/luajit-examples/blob/master/socket/c/epoll-server.c
 
+[mqtt broker reference]
+https://github.com/ayourtch/uTT
+
+[MQTT packet 분석 사이트 ]
+http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc385349278
 */
 
 class Broker{
@@ -80,7 +87,7 @@ public:
                         a notification from client sockets.
                         
                     */  
-                    handle_message(events[i].data.fd);
+                    handle_event(events[i].data.fd);
                 }
 
             } 
@@ -173,7 +180,7 @@ private:
         1) parse the type of packet from the client request 
         2) 
     */
-    void handle_message(const int cli_fd){
+    void handle_event(const int cli_fd){
         char buf[1024];
         ssize_t count = read(cli_fd, buf, sizeof(buf));   
         
@@ -209,8 +216,8 @@ private:
             // ** SUBSCRIBE packet ** 
             printf("subscribe request come\n");
             
-            handle_subscribe_request();
-
+            handle_subscribe_request(cli_fd, buf);
+            
             sleep(10);
         }
         else if( type == MessageType::PUBLISH){
@@ -235,8 +242,46 @@ private:
     }
     
 
-    void handle_subscribe_request(){
+    void handle_subscribe_request(int cli_fd, char* payload){
+        /**
+            byte 1 : MQTT Control packet type(4bit) + reserved(4bit)
+            byte 2 : remaining length(variable header + payload)
+            byte 3
+            byte 4 : variable header 
+            -------
+            payload 
+            - string with UTF-8 encoded 
+            byte 1      : length MSB 
+            byte 2      : length LSB - it menas topic maximum length is 2^16
+            byte 3..N   : Topic 
+            byte (N+1)  : requested QoS
+        */        
+        unsigned char remainingLength = (unsigned char)payload[1];
+        
 
+        /**
+            // 네트워크 바이트 순서 : 빅 엔디안(MSB부터 저장.)
+            [0000 0100] [0000 0000] // 1024
+            
+            [0000 0000] [0000 0100] // 4 
+        */
+        uint16_t topicLength = ntohs( *(uint16_t*)&payload[4]); // read payload[4][5]
+
+
+        // Get topic string!!
+        std::string topic(payload+6, topicLength);
+        std::cout<<topic<<std::endl;
+        
+        //TODO : store the tocic info and corresponding connection
+             
+    
+        //send Sub Ack packet 
+        uint8_t subAck = static_cast<uint8_t>(MessageType::SUBACK); // 9 
+        
+        static uint8_t subOk[] = {subAck<<4, 3, payload[2], payload[3], 0}; // 8 bits size
+        char* reply = reinterpret_cast<char*>(subOk);
+
+        write(cli_fd, reply, 5);         
     }
 
 

@@ -15,6 +15,7 @@
 #include <iostream>
 
 #include "Message.hpp"
+#include "TopicTree.hpp"
 
 /**
 
@@ -273,8 +274,9 @@ private:
         std::cout<<topic<<std::endl;
         
         //TODO : store the tocic info and corresponding connection
-             
+        topicTree.subscribe(cli_fd, topic);    
     
+
         //send Sub Ack packet 
         uint8_t subAck = static_cast<uint8_t>(MessageType::SUBACK); // 9 
         
@@ -298,6 +300,7 @@ private:
     int epfd;
     int servSock;
     const int MAX_EVENTS;
+    TopicTree topicTree;
 };
 
 

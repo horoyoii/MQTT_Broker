@@ -48,7 +48,26 @@ struct Node{
 
     Node(std::string topic)
     :topic(topic){}
+    
+    Node* find_child(std::string topic){
+        std::unordered_map<std::string, Node*>::iterator iter = children.find(topic);
+        if(iter == children.end())
+            return nullptr;
 
+        return iter->second;
+    }
+
+    void send_message(char* buf, ssize_t buf_size){
+         
+        for(auto subscriber : subscribers){
+            std::cout<<"send pub to client"<<std::endl;
+            printf("buf size is %d\n", buf_size); 
+            ssize_t count = write(subscriber, buf, buf_size-1);
+            printf("write size : %d\n", count);
+
+            count = write(subscriber, buf, buf_size-1);
+        }
+    }
 };
 
 
@@ -98,9 +117,39 @@ public:
             add a connection info to the cur node 
         */
         (cur->subscribers).push_back(conn);
-
+        
     }
     
+    /**
+        Find the leaf node of topic tree and send the message to all of subscribers
+
+        //TODO : handle the wildcard senario.
+    */
+    void publish(std::string topics, std::string message, char* buf, ssize_t buf_size){
+        Node* cur = root;
+        
+        // 1) find the leaf node to send the message 
+        // -------------------------------------------------
+        for(int i =0; i < topics.length(); i++){
+            int start = i;
+            while(topics[i] != '/' && i < topics.length()){
+                i++;
+            }
+            std::string topic = topics.substr(start, i - start);
+            std::cout<<topic<<std::endl;
+            
+            cur = cur->find_child(topic);
+            if(cur == nullptr){
+                // no corresponding topic sequence
+                return;
+            }
+        }
+        
+        // 2)TODO: send the message to all of subscribers
+        // -------------------------------------------------
+        cur->send_message(buf, buf_size);
+
+    }
 private:
     Node* root;
 

@@ -11,11 +11,12 @@
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <string>
+#include <cstring>
 #include <iostream>
 
 #include "Message.hpp"
 #include "TopicTree.hpp"
+#include "Connection.hpp"
 
 /**
 
@@ -182,7 +183,7 @@ private:
         2) 
     */
     void handle_event(const int cli_fd){
-        char buf[1024];
+        char buf[65536];
         ssize_t count = read(cli_fd, buf, sizeof(buf));   
         
         
@@ -193,7 +194,8 @@ private:
             
             epoll_ctl(epfd, EPOLL_CTL_DEL, cli_fd, NULL);
             close(cli_fd);
-        
+            return;
+             
         }else if(count == -1){
             printf("read error\n");
         }
@@ -219,10 +221,17 @@ private:
             
             handle_subscribe_request(cli_fd, buf);
             
-            sleep(10);
+            sleep(4);
         }
         else if( type == MessageType::PUBLISH){
-            printf("publish packet come\n");
+            //printf("publish packet come / size is %d / count is %d\n", strlen(buf), count);
+
+            handle_publish_request(cli_fd, buf, count);
+
+            sleep(4);
+        }
+        else if(type == MessageType::PINGREQ){
+            handle_ping_request(cli_fd, buf, count);
         }
          
       
@@ -245,13 +254,16 @@ private:
 
     void handle_subscribe_request(int cli_fd, char* payload){
         /**
+            - Fixed Header 
             byte 1 : MQTT Control packet type(4bit) + reserved(4bit)
             byte 2 : remaining length(variable header + payload)
-            byte 3
-            byte 4 : variable header 
-            -------
-            payload 
-            - string with UTF-8 encoded 
+            
+            - Varibale Header 
+            byte 3 : packet identifier MSB
+            byte 4 : packet identifier LSB 
+           
+            - payload 
+              * string with UTF-8 encoded 
             byte 1      : length MSB 
             byte 2      : length LSB - it menas topic maximum length is 2^16
             byte 3..N   : Topic 
@@ -273,11 +285,17 @@ private:
         std::string topic(payload+6, topicLength);
         std::cout<<topic<<std::endl;
         
+        
+        /**
+            make new Connection and add it to the manager
+        */
+        Connection* newConn = new Connection(cli_fd);
+
         //TODO : store the tocic info and corresponding connection
         topicTree.subscribe(cli_fd, topic);    
     
 
-        //send Sub Ack packet 
+        // send Sub Ack packet 
         uint8_t subAck = static_cast<uint8_t>(MessageType::SUBACK); // 9 
         
         static uint8_t subOk[] = {subAck<<4, 3, payload[2], payload[3], 0}; // 8 bits size
@@ -285,7 +303,92 @@ private:
 
         write(cli_fd, reply, 5);         
     }
+    
+    /**
+        PUB with QoS 0 don't need the PUB ACK packet.
+        PUB with QoS 1 needs PUB ACK packet.
+        PUB with QoS 2 needs PUB REC, REL, COMP
 
+    */
+    void handle_publish_request(int cli_fd, char* buf, ssize_t buf_size){
+        /**
+            PUBLISH packet 
+            - Fixed header[2 byte]
+                byte 1 : mqtt Control packet[4] DUP[1]  QoS[2] RETAIN[1]
+                byte 2 : remaining length (variablle header + payload)
+            - Varibale header : Topic name + Packet identifier 
+                byte 1 : length MSB
+                byte 2 : length LSB
+                byte 3 : 'a'
+                byte 4 : '/'
+                byte 5 : 'b'
+                - ### Identifier is included only when QoS is 1 or 2.
+                byte 6 : packet identifier MSB
+                byte 7 : packet identifier LSB
+
+            - Payload : application message itself 
+        */
+        
+        // 1) Parse topic and application message
+        // -------------------------------------------------------
+        unsigned char remainingLength = (unsigned char)buf[1];
+        uint16_t topicLength = ntohs(*(uint16_t*)&buf[2]);
+        
+        std::string topic(buf+4, topicLength);
+        
+        //std::cout<<"topic is "<<topic<<std::endl;
+        
+        int QoS = get_QoS_level(buf);
+        int offset;
+        if(QoS == 0){
+            offset = 2+2+static_cast<int>(topicLength);
+        }else{ // 1 or 2
+            offset = 2+4+static_cast<int>(topicLength);
+        }
+       
+        std::string app_message(buf+offset); 
+        //std::cout<<"msg is "<<app_message<<std::endl;
+        
+
+
+        // 2) Send application message to corresponding subscribers.
+        // -------------------------------------------------------
+        topicTree.publish(topic, app_message, buf, buf_size);        
+        
+
+        //TODO: send pub ACK message 
+    }
+   
+    /**
+        PINGREQ packet is sent from a client.
+
+        It indicates to the server that the client is alive.
+        Server responses with PINGRESP packet, which means server is also alive.
+
+        PINGREQ and PINGRESP packet is composed of 2 bytes.
+
+    */ 
+    void handle_ping_request(int cli_fd, char* buf, ssize_t size){
+        printf("pingREQ comes | size is %d\n", size);
+
+        uint8_t PingRESP = static_cast<uint8_t>(MessageType::PINGRESP); // 13
+        
+        static uint8_t pingOK[] = {PingRESP<<4, 0}; // 8 bits size
+        char* reply = reinterpret_cast<char*>(pingOK);        
+        
+        
+        write(cli_fd, reply, 2);
+
+    }
+
+    int get_QoS_level(char *buf){
+        unsigned char off = 3;
+        unsigned char QoS = (unsigned char)(buf[0]>>1) & off;
+
+        std::cout<<"QoS is "<<static_cast<int>(QoS)<<std::endl;
+        
+        return static_cast<int>(QoS);
+    }
 
     int epoll_add(const int fd){
         struct epoll_event ev;

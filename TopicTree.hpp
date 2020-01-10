@@ -48,7 +48,16 @@ struct Node{
 
     Node(std::string topic)
     :topic(topic){}
-    
+
+
+    /**
+        Find the child of the topic.
+        @return the Node pointer of the topic. if not exists, nullptr is returned.
+
+        Based on this function, TopicTree.publish function will determine whether 
+        continue to traverse or make a new node.
+
+    */    
     Node* find_child(std::string topic){
         std::unordered_map<std::string, Node*>::iterator iter = children.find(topic);
         if(iter == children.end())
@@ -78,6 +87,9 @@ public:
     }
     
     /**
+        Parse the topic string and make a new node if needed.
+        Finally register a new subscriber to the node.
+        
         (#) multi level wildcard 
          - will be stored as other string.
          - this node is a leaf node.

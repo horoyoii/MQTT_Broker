@@ -1,7 +1,10 @@
+#pragma once
+
 #include<unordered_map>
 #include<string>
-#include<vector>
 
+#include "Connection.hpp"
+#include "Node.hpp"
 /**
 
     Topics 
@@ -37,49 +40,6 @@
 
 */
 
-typedef int ConnectionPtr;
-
-struct Node{
-    std::string                                 topic;
-    std::unordered_map<std::string, Node*>      children;
-    std::vector<ConnectionPtr>                  subscribers;
-    
-    Node(){}
-
-    Node(std::string topic)
-    :topic(topic){}
-
-
-    /**
-        Find the child of the topic.
-        @return the Node pointer of the topic. if not exists, nullptr is returned.
-
-        Based on this function, TopicTree.publish function will determine whether 
-        continue to traverse or make a new node.
-
-    */    
-    Node* find_child(std::string topic){
-        std::unordered_map<std::string, Node*>::iterator iter = children.find(topic);
-        if(iter == children.end())
-            return nullptr;
-
-        return iter->second;
-    }
-
-    void send_message(char* buf, ssize_t buf_size){     
-        
-        for(auto subscriber : subscribers){
-            ssize_t count = write(subscriber, buf, buf_size);
-            
-            printf("[MQTT / %d] PUBLISH to client / write size : %d\n", subscriber, count);
-            
-        }
-
-        printf("[log] written done \n");
-    }
-};
-
-
 class TopicTree{
 public:
     TopicTree(){
@@ -95,7 +55,7 @@ public:
          - this node is a leaf node.
 
     */    
-    void subscribe(ConnectionPtr conn, std::string topics){
+    Node* subscribe(ConnectionPtr conn, std::string topics){
         Node* cur = root;
 
         for(int i=0; i<topics.length(); i++){
@@ -128,8 +88,12 @@ public:
         /**
             add a connection info to the cur node 
         */
-        (cur->subscribers).push_back(conn);
+        cur->add_subscriber(conn);
         
+        // also connection object needs to know where it belongs to
+        //conn->set_node(cur);
+                
+         return cur;
     }
     
     /**
@@ -137,7 +101,7 @@ public:
 
         //TODO : handle the wildcard senario.
     */
-    void publish(std::string topics, std::string message, char* buf, ssize_t buf_size){
+    void publish(std::string topics, char* buf, ssize_t buf_size){
         Node* cur = root;
         
         // 1) find the leaf node to send the message 
@@ -148,7 +112,6 @@ public:
                 i++;
             }
             std::string topic = topics.substr(start, i - start);
-            //std::cout<<topic<<std::endl;
             
             cur = cur->find_child(topic);
             if(cur == nullptr){
@@ -164,5 +127,4 @@ public:
     }
 private:
     Node* root;
-
 };

@@ -12,11 +12,15 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <cstring>
+#include <memory>
+
 #include <iostream>
 
 #include "Message.hpp"
-#include "TopicTree.hpp"
+
 #include "Connection.hpp"
+#include "ConnectionManager.hpp"
+#include "TopicTree.hpp"
 
 /**
 
@@ -181,6 +185,8 @@ private:
         ev.events = EPOLLIN; //| EPOLLET;
         epoll_ctl(epfd, EPOLL_CTL_ADD, cliSock, &ev);
         
+
+
         printf("new connection added : fd - %d\n", cliSock);
         return 1;
     }
@@ -192,16 +198,22 @@ private:
     void handle_event(const int cli_fd){
         char buf[65536];
         ssize_t count = read(cli_fd, buf, sizeof(buf));   
-        //printf("\n\n [%d] read count size : %d\n\n", cli_fd, count);
-        printf("socket read count : %d\n", count);
+        
+        //printf("socket read count : %d\n", count);
 
         // 0) handle exceptions... 
         // --------------------------------
         if(count == 0){
             printf("\n[%d] client send a close request\n", cli_fd);
             
+            //ConnectionPtr conn = connManager.get_connection(cli_fd);
+            int res = connManager.disconnect(cli_fd);
+            
+            if(res == 0){
+                close(cli_fd);
+            }
+
             epoll_ctl(epfd, EPOLL_CTL_DEL, cli_fd, NULL);
-            close(cli_fd);
             return;
              
         }else if(count == -1){
@@ -220,15 +232,20 @@ private:
             // 1-1) send Conn Ack packet to client 
             handle_connection_request(cli_fd);       
 
-            //TODO: 1-2) add this client to connection pool
-
+            /** 
+             1-2) make a new connection object 
+                 add it to the connection manager 
+            ----------------------------------------------*/
+            ConnectionPtr newCon = std::make_shared<Connection>(cli_fd);
             
+            connManager.add_connection(cli_fd, newCon);
+                        
         }else if( type == MessageType::SUBSCRIBE){
             // ** SUBSCRIBE packet ** 
             printf("\n[MQTT / %d] SUBSCRIBE request come\n", cli_fd);
+            ConnectionPtr conn = connManager.get_connection(cli_fd);   
             
-            handle_subscribe_request(cli_fd, buf);
-            
+            handle_subscribe_request(conn, buf);
             
         }
         else if( type == MessageType::PUBLISH){
@@ -239,12 +256,14 @@ private:
                 /TODO : PUBLISH 와 DISCONNECT 가 같이 read 될 수도 있고 아닐 수도 있다. 
             */
             if(remainingLength + 2 == count){
-                printf("제대로 읽힘\n");
+                //printf("제대로 읽힘\n");
                 // PUBLISH packet만 읽힌 경우.
+                
                 handle_publish_request(cli_fd, buf, count);
             }else{
                 // PUBLISH + DISCONNECT 같이 읽힘.
-                printf("같이 읽힘\n");
+                //printf("같이 읽힘\n");
+                
                 handle_publish_request(cli_fd, buf, count-2);
                 handle_disconnect_request(cli_fd);
              }
@@ -281,7 +300,7 @@ private:
     }
     
 
-    void handle_subscribe_request(int cli_fd, char* payload){
+    void handle_subscribe_request(ConnectionPtr conn, char* payload){
         /**
             - Fixed Header 
             byte 1 : MQTT Control packet type(4bit) + reserved(4bit)
@@ -314,23 +333,18 @@ private:
         std::string topic(payload+6, topicLength);
         std::cout<<topic<<std::endl;
         
+        //store the tocic info and corresponding connection
+        Node* nnode = topicTree.subscribe(conn, topic);    
+        connManager.add_mapping_info(conn->get_cid(), nnode);
         
-        /**
-            make new Connection and add it to the manager
-        */
-        Connection* newConn = new Connection(cli_fd);
-
-        //TODO : store the tocic info and corresponding connection
-        topicTree.subscribe(cli_fd, topic);    
-    
-
         // send Sub Ack packet 
         uint8_t subAck = static_cast<uint8_t>(MessageType::SUBACK); // 9 
         
         static uint8_t subOk[] = {subAck<<4, 3, payload[2], payload[3], 0}; // 8 bits size
         char* reply = reinterpret_cast<char*>(subOk);
-
-        write(cli_fd, reply, 5);         
+        
+        conn->sendMessage(reply, 5);
+        //write(cli_fd, reply, 5);         
     }
     
     /**
@@ -381,10 +395,11 @@ private:
         // 2) Send application message to corresponding subscribers.
         // -------------------------------------------------------
         std::cout<<"topic : "<<topic<<"\n message : "<<app_message<<std::endl;
-        topicTree.publish(topic, app_message, buf, buf_size);        
+        topicTree.publish(topic,buf, buf_size);        
         
 
-        //TODO: send pub ACK message 
+        //TODO: send pub ACK message if QoS is more than 0.
+         
     }
    
     /**
@@ -437,6 +452,7 @@ private:
     int servSock;
     const int MAX_EVENTS;
     TopicTree topicTree;
+    ConnectionManager connManager;
 };
 
 

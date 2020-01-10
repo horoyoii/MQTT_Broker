@@ -62,7 +62,7 @@ public:
             */
             printf("epoll wait called\n");
             nEvents = epoll_wait(epfd, events, MAX_EVENTS, -1);
-            printf("epoll_wait wake with [%d] events\n", nEvents);
+            //printf("epoll_wait wake with [%d] events\n", nEvents);
             
             for(i=0; i< nEvents; i++)
             {   
@@ -70,7 +70,7 @@ public:
                     there is a notification on listening socket comming from OS, 
                     which means it needs to handle the incomming connection requests.                  
                 */
-                printf(" %d fd occurs\n", events[i].data.fd); 
+                //printf(" %d fd occurs\n", events[i].data.fd); 
                 if( events[i].data.fd == servSock ){
                     
                     while(1){
@@ -168,10 +168,17 @@ private:
         if(cliSock == -1)
             return errno;
 
+        // 0) Make client socket NON_BLOCKING  
+        int flags = fcntl(cliSock, F_GETFL, 0);
+        
+        flags |= O_NONBLOCK;
+        int s = fcntl(cliSock, F_SETFL, flags);
+
+
         // 1) add this socket fd to epoll 
         struct epoll_event ev;
         ev.data.fd = cliSock;
-        ev.events = EPOLLIN;
+        ev.events = EPOLLIN; //| EPOLLET;
         epoll_ctl(epfd, EPOLL_CTL_ADD, cliSock, &ev);
         
         printf("new connection added : fd - %d\n", cliSock);
@@ -185,12 +192,13 @@ private:
     void handle_event(const int cli_fd){
         char buf[65536];
         ssize_t count = read(cli_fd, buf, sizeof(buf));   
-        
-        
+        //printf("\n\n [%d] read count size : %d\n\n", cli_fd, count);
+        printf("socket read count : %d\n", count);
+
         // 0) handle exceptions... 
         // --------------------------------
         if(count == 0){
-            printf("client send a close request\n");
+            printf("\n[%d] client send a close request\n", cli_fd);
             
             epoll_ctl(epfd, EPOLL_CTL_DEL, cli_fd, NULL);
             close(cli_fd);
@@ -207,31 +215,52 @@ private:
         // 1) identify message type
         if( type == MessageType::CONNECT){
             // ** CONNECT packet **  
-            printf("connect request come\n");
+            printf("\n[MQTT / %d] CONNECT request come\n", cli_fd);
             
             // 1-1) send Conn Ack packet to client 
             handle_connection_request(cli_fd);       
 
             //TODO: 1-2) add this client to connection pool
 
-            sleep(4);
+            
         }else if( type == MessageType::SUBSCRIBE){
             // ** SUBSCRIBE packet ** 
-            printf("subscribe request come\n");
+            printf("\n[MQTT / %d] SUBSCRIBE request come\n", cli_fd);
             
             handle_subscribe_request(cli_fd, buf);
             
-            sleep(4);
+            
         }
         else if( type == MessageType::PUBLISH){
-            //printf("publish packet come / size is %d / count is %d\n", strlen(buf), count);
-
-            handle_publish_request(cli_fd, buf, count);
-
-            sleep(4);
+            printf("\n[MQTT / %d] PUBLISH request come / read size : %d \n", cli_fd, count);
+            unsigned char   remainingLength = (unsigned char)buf[1];
+            
+            /**
+                /TODO : PUBLISH 와 DISCONNECT 가 같이 read 될 수도 있고 아닐 수도 있다. 
+            */
+            if(remainingLength + 2 == count){
+                printf("제대로 읽힘\n");
+                // PUBLISH packet만 읽힌 경우.
+                handle_publish_request(cli_fd, buf, count);
+            }else{
+                // PUBLISH + DISCONNECT 같이 읽힘.
+                printf("같이 읽힘\n");
+                handle_publish_request(cli_fd, buf, count-2);
+                handle_disconnect_request(cli_fd);
+             }
+            
+                        
         }
         else if(type == MessageType::PINGREQ){
+            printf("\n[MQTT / %d] PINGREQ request come\n", cli_fd);
+
             handle_ping_request(cli_fd, buf, count);
+        
+        }else if(type == MessageType::DISCONNECT){
+            //TODO : from subscriber or publisher ? 
+            printf("\n[MQTT / %d] DISCONNECT request come\n", cli_fd);
+            handle_disconnect_request(cli_fd);
+
         }
          
       
@@ -331,28 +360,27 @@ private:
         
         // 1) Parse topic and application message
         // -------------------------------------------------------
-        unsigned char remainingLength = (unsigned char)buf[1];
-        uint16_t topicLength = ntohs(*(uint16_t*)&buf[2]);
+        unsigned char   remainingLength = (unsigned char)buf[1];
+        uint16_t        topicLength = ntohs(*(uint16_t*)&buf[2]);
         
-        std::string topic(buf+4, topicLength);
+        std::string     topic(buf+4, topicLength);
+        int             QoS = get_QoS_level(buf);
+        int             offset;
         
-        //std::cout<<"topic is "<<topic<<std::endl;
-        
-        int QoS = get_QoS_level(buf);
-        int offset;
+//        printf("remaining Leng : %d\n", remainingLength);
+
         if(QoS == 0){
             offset = 2+2+static_cast<int>(topicLength);
         }else{ // 1 or 2
             offset = 2+4+static_cast<int>(topicLength);
         }
        
-        std::string app_message(buf+offset); 
-        //std::cout<<"msg is "<<app_message<<std::endl;
-        
+        std::string app_message(buf+offset);  
 
 
         // 2) Send application message to corresponding subscribers.
         // -------------------------------------------------------
+        std::cout<<"topic : "<<topic<<"\n message : "<<app_message<<std::endl;
         topicTree.publish(topic, app_message, buf, buf_size);        
         
 
@@ -369,7 +397,6 @@ private:
 
     */ 
     void handle_ping_request(int cli_fd, char* buf, ssize_t size){
-        printf("pingREQ comes | size is %d\n", size);
 
         uint8_t PingRESP = static_cast<uint8_t>(MessageType::PINGRESP); // 13
         
@@ -381,11 +408,17 @@ private:
 
     }
 
+    void handle_disconnect_request(int cli_fd){
+        
+        close(cli_fd);
+        epoll_ctl(epfd, EPOLL_CTL_DEL, cli_fd, NULL);
+    }
+
     int get_QoS_level(char *buf){
         unsigned char off = 3;
         unsigned char QoS = (unsigned char)(buf[0]>>1) & off;
 
-        std::cout<<"QoS is "<<static_cast<int>(QoS)<<std::endl;
+        //std::cout<<"QoS is "<<static_cast<int>(QoS)<<std::endl;
         
         return static_cast<int>(QoS);
     }

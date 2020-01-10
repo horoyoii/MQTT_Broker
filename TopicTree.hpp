@@ -40,9 +40,9 @@
 typedef int ConnectionPtr;
 
 struct Node{
-    std::string topic;
-    std::unordered_map<std::string, Node*> children;
-    std::vector<ConnectionPtr> subscribers;
+    std::string                                 topic;
+    std::unordered_map<std::string, Node*>      children;
+    std::vector<ConnectionPtr>                  subscribers;
     
     Node(){}
 
@@ -57,16 +57,16 @@ struct Node{
         return iter->second;
     }
 
-    void send_message(char* buf, ssize_t buf_size){
-         
+    void send_message(char* buf, ssize_t buf_size){     
+        
         for(auto subscriber : subscribers){
-            std::cout<<"send pub to client"<<std::endl;
-            printf("buf size is %d\n", buf_size); 
-            ssize_t count = write(subscriber, buf, buf_size-1);
-            printf("write size : %d\n", count);
-
-            count = write(subscriber, buf, buf_size-1);
+            ssize_t count = write(subscriber, buf, buf_size);
+            
+            printf("[MQTT / %d] PUBLISH to client / write size : %d\n", subscriber, count);
+            
         }
+
+        printf("[log] written done \n");
     }
 };
 
@@ -136,7 +136,7 @@ public:
                 i++;
             }
             std::string topic = topics.substr(start, i - start);
-            std::cout<<topic<<std::endl;
+            //std::cout<<topic<<std::endl;
             
             cur = cur->find_child(topic);
             if(cur == nullptr){

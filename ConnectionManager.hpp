@@ -28,16 +28,13 @@ public:
         (iter->second)->disconnect();
         
         // remove conn object from connection pool        
-        printf("count is  %d\n", (iter->second).use_count());   
         int res =connections.erase(cid);
         printf("erase from connection pool\n");
 
         // remove conn object from TopicTree 
         Node* node = mapping_info.find(cid)->second;
         node->remove_subscriber(cid);        
-
-
-        printf("count is  %d\n", (iter->second).use_count());        
+     
         return res;
     }
 

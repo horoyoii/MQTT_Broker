@@ -98,11 +98,13 @@ public:
     
     /**
         Find the leaf node of topic tree and send the message to all of subscribers
+        
+        wildcard(+) : this is handled in the recursive way.
 
         //TODO : handle the wildcard senario.
     */
-    void publish(std::string topics, char* buf, ssize_t buf_size){
-        Node* cur = root;
+    void publish(Node* cur, std::string topics, char* buf, ssize_t buf_size){
+        //Node* cur = root;
         
         // 1) find the leaf node to send the message 
         // -------------------------------------------------
@@ -111,6 +113,29 @@ public:
             while(topics[i] != '/' && i < topics.length()){
                 i++;
             }
+
+            /**
+              2) Find the single level wildcard(+)
+                If find the (+), call another publish function  
+            ------------------------------------------------ */        
+            Node* child = cur->find_child("+");
+            if(child != nullptr){
+                //TODO : handle the case that (+) is positioned at the end.
+                //if(topics.substr(i+1) != "")
+                publish(child, topics.substr(i+1), buf, buf_size);        
+                
+                /**
+                    error case 
+                    sub :: home/room/+
+                    pub :: home/room/temp
+
+                */ 
+            }
+            
+
+            /** 
+              3) Parse a single topic from the topic string.
+            ------------------------------------------------ */
             std::string topic = topics.substr(start, i - start);
             
             cur = cur->find_child(topic);
@@ -124,6 +149,10 @@ public:
         // -------------------------------------------------
         cur->send_message(buf, buf_size);
 
+    }
+
+    Node* getRootNode(){
+        return root;
     }
 private:
     Node* root;

@@ -22,10 +22,11 @@ Node* Node::find_child(std::string topic){
     return iter->second;
 }
 
+
+
 void Node::send_message(char* buf, ssize_t buf_size){     
     
     for(std::pair<int, ConnectionPtr> sub : subscribers){
-        //ssize_t count = write((sub.second)->get_cid(), buf, buf_size);
         int count = (sub.second)->sendMessage(buf, buf_size);
 
         printf("[MQTT / %d] PUBLISH to client / write size : %d\n", (sub.second)->get_cid(), count);

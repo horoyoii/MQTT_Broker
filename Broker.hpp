@@ -381,8 +381,7 @@ private:
         int             QoS = get_QoS_level(buf);
         int             offset;
         
-//        printf("remaining Leng : %d\n", remainingLength);
-
+        
         if(QoS == 0){
             offset = 2+2+static_cast<int>(topicLength);
         }else{ // 1 or 2
@@ -395,7 +394,7 @@ private:
         // 2) Send application message to corresponding subscribers.
         // -------------------------------------------------------
         std::cout<<"topic : "<<topic<<"\n message : "<<app_message<<std::endl;
-        topicTree.publish(topic,buf, buf_size);        
+        topicTree.publish(topicTree.getRootNode(), topic,buf, buf_size);        
         
 
         //TODO: send pub ACK message if QoS is more than 0.

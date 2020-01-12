@@ -63,53 +63,41 @@ public:
             while( topics[i] != '/' && i < topics.length()){
                 i++;
             }
-
             std::string topic = topics.substr(start, i-start);
-            // 1) process the topic
-            /**
+
+            /** 1) process the topic
                 move the child node if exists or create one   
-             */    
+             ---------------------------------------------------- */    
             std::unordered_map<std::string, Node*>::iterator iter =  (cur->children).find(topic);      
             
- 
             if(iter == (cur->children).end()){
                 Node* newNode = new Node(topic);
                 (cur->children).insert(make_pair(topic, newNode));
                  
                 cur = newNode;
-                printf("make new Node\n");
             }else{
                 cur = iter->second; // second type is Node* 
             }
 
         }
 
-        // 2) 
-        /**
-            add a connection info to the cur node 
-        */
+        /** 2)  add a connection info to the cur node 
+        ---------------------------------------------------*/
         cur->add_subscriber(conn);
-        
-        // also connection object needs to know where it belongs to
-        //conn->set_node(cur);
                 
-         return cur;
+        return cur;
     }
     
     /**
-        Find the leaf node of topic tree and send the message to all of subscribers
+        Find the node of topic tree and send the message to all of subscribers
         
-        wildcard(+) : this is handled in the recursive way.
+        wildcard(+)(#) : these are handled in the recursive way.
 
-        //TODO : handle the wildcard senario.
     */
     void publish(Node* cur, std::string topics, char* buf, ssize_t buf_size){
         
-        // 1) find the leaf node to send the message 
-        // -------------------------------------------------
         for(int i =0; i < topics.length(); i++){
-            
-            
+                
             int start = i;
             while(topics[i] != '/' && i < topics.length()){
                 i++;
@@ -129,15 +117,11 @@ public:
               2) Find the single level wildcard(+)
             ------------------------------------------------ */        
             if( (child = cur->find_child("+")) != nullptr){
-                //TODO : handle the case that (+) is positioned at the end.
-                publish(child, topics.substr(i+1), buf, buf_size);        
                 
-                /**
-                    error case 
-                    sub :: home/room/+
-                    pub :: home/room/temp
-
-                */ 
+                if(i == topics.size()) // if the (+) is positioned at the end.
+                    publish(child, "", buf, buf_size);        
+                else
+                    publish(child, topics.substr(i+1), buf, buf_size);       
             }
             
 
@@ -145,17 +129,14 @@ public:
               3) Parse a single topic from the topic string.
             ------------------------------------------------ */
             std::string topic = topics.substr(start, i - start);
-            
-            cur = cur->find_child(topic);
-            if(cur == nullptr){
-                // no corresponding topic sequence
+            if( (cur = cur->find_child(topic)) == nullptr ) // no corresponding topic sequence
                 return;
-            }
+            
 
         }// end for
         
-        // 2)TODO: send the message to all of its subscribers
-        // -------------------------------------------------
+        /** 2)send the message to all of its subscribers
+         --------------------------------------------------- */
         cur->send_message(buf, buf_size);
 
     }

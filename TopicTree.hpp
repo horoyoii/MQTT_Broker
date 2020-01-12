@@ -104,24 +104,32 @@ public:
         //TODO : handle the wildcard senario.
     */
     void publish(Node* cur, std::string topics, char* buf, ssize_t buf_size){
-        //Node* cur = root;
         
         // 1) find the leaf node to send the message 
         // -------------------------------------------------
         for(int i =0; i < topics.length(); i++){
+            
+            
             int start = i;
             while(topics[i] != '/' && i < topics.length()){
                 i++;
             }
 
+            
+            /**
+                1) Find the multi level wildcard(#)
+            ------------------------------------------------- */
+            Node* child;
+            if( (child = cur->find_child("#")) != nullptr){
+                publish(child, "", buf, buf_size);
+            }
+            
+
             /**
               2) Find the single level wildcard(+)
-                If find the (+), call another publish function  
             ------------------------------------------------ */        
-            Node* child = cur->find_child("+");
-            if(child != nullptr){
+            if( (child = cur->find_child("+")) != nullptr){
                 //TODO : handle the case that (+) is positioned at the end.
-                //if(topics.substr(i+1) != "")
                 publish(child, topics.substr(i+1), buf, buf_size);        
                 
                 /**
@@ -143,9 +151,10 @@ public:
                 // no corresponding topic sequence
                 return;
             }
-        }
+
+        }// end for
         
-        // 2)TODO: send the message to all of subscribers
+        // 2)TODO: send the message to all of its subscribers
         // -------------------------------------------------
         cur->send_message(buf, buf_size);
 

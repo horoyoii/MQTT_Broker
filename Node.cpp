@@ -33,7 +33,6 @@ void Node::send_message(char* buf, ssize_t buf_size){
         
     }
 
-    printf("[log] written done \n");
 }
 
 void Node::add_subscriber(ConnectionPtr conn){

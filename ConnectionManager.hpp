@@ -9,7 +9,10 @@ public:
     ConnectionManager(){
 
     }
-    
+
+    void setRoot(Node* root){
+        this->root = root;
+    }
     void add_connection(int cid, ConnectionPtr conn){
         connections.insert({cid, conn});
 
@@ -34,7 +37,21 @@ public:
         // remove conn object from TopicTree 
         Node* node = mapping_info.find(cid)->second;
         node->remove_subscriber(cid);        
-     
+        
+        while(node != root){ // not apply to the root node
+            if(!node->hasSubscriber() && !node->hasChildren()){
+                // if no subscriber and no children, then delete
+                std::string topic = node->getTopic();
+                Node* delNode = node;
+                node = node->getParent();
+                node->remove_child(topic);
+
+                mapping_info.erase(cid);
+
+                delete delNode;
+            }else
+                break;
+        }
         return res;
     }
 
@@ -49,5 +66,5 @@ public:
 private:
     std::unordered_map<int, ConnectionPtr>  connections;
     std::unordered_map<int, Node*>          mapping_info;
-
+    Node* root;
 };

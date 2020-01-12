@@ -49,6 +49,9 @@ public:
         // 3) add listening socket as epoll events
         res = register_servSock();
         
+        
+        // 4) Initialize the connection manager.
+        connManager.setRoot(topicTree.getRoot());        
     }   
     
     void run(){

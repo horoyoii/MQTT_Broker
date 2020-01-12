@@ -45,7 +45,9 @@ public:
     TopicTree(){
         root = new Node;
     }
-    
+    Node* getRoot(){
+        return root;
+    }
     /**
         Parse the topic string and make a new node if needed.
         Finally register a new subscriber to the node.
@@ -72,6 +74,8 @@ public:
             
             if(iter == (cur->children).end()){
                 Node* newNode = new Node(topic);
+                //TODO : encapsulate the two codes below
+                newNode->parent = cur;
                 (cur->children).insert(make_pair(topic, newNode));
                  
                 cur = newNode;

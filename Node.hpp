@@ -11,7 +11,9 @@ public:
     std::string                                 topic;
     std::unordered_map<std::string, Node*>      children;
     std::unordered_map<int, ConnectionPtr>      subscribers;
-    
+
+    Node* parent;
+        
     Node();
 
     Node(std::string topic);
@@ -31,7 +33,16 @@ public:
    void add_subscriber(ConnectionPtr conn);
     
    void remove_subscriber(int cid);
+   void remove_child(std::string topic);
 
+   Node* getParent();
+   std::string getTopic();
+    
+   bool hasSubscriber();
+
+   bool hasChildren();  
+
+    ~Node();
 };
 
 

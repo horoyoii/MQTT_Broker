@@ -41,5 +41,30 @@ void Node::add_subscriber(ConnectionPtr conn){
 
 void Node::remove_subscriber(int cid){
     subscribers.erase(cid);
+   
 }
 
+void Node::remove_child(std::string topic){
+    children.erase(topic);
+}
+
+Node* Node::getParent(){
+    return parent;
+}
+
+std::string Node::getTopic(){
+    return topic;
+}
+
+
+bool Node::hasSubscriber(){
+    return !subscribers.empty();
+}
+
+bool Node::hasChildren(){
+    return !children.empty();
+}
+
+Node::~Node(){
+    std::cout<<"Node destructor"<<std::endl;
+}

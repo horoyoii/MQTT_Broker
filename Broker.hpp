@@ -387,8 +387,12 @@ private:
         
         if(QoS == 0){
             offset = 2+2+static_cast<int>(topicLength);
-        }else{ // 1 or 2
+        }else if(QoS == 1{
             offset = 2+4+static_cast<int>(topicLength);
+            
+            // Parse the Packet Id
+            uint16_t PacketId  = ntohs(*(uint16_t*)&buf[offset-2]);
+                    
         }
        
         std::string app_message(buf+offset);  
@@ -398,12 +402,54 @@ private:
         // -------------------------------------------------------
         std::cout<<"topic : "<<topic<<"\n message : "<<app_message<<std::endl;
         topicTree.publish(topicTree.getRootNode(), topic,buf, buf_size);        
-        
-
-        //TODO: send pub ACK message if QoS is more than 0.
          
     }
    
+   /**
+        1) When the broker receives the PUB packet 
+            1-1) It stores the message internally.
+            1-2) with the coresponding Pacekt Id.
+        2) Send the PUB packet to all of the subscribers whose topics matchs the publisher's.
+           2-1) Find the subscribers in a topic tree
+           2-2) Write the packet 
+           2-3) Wait for the all PUB ACK packet to come in a amount of time. 
+              2-3-1) If timeout, 
+                        Resend the PUB to the subscriber.
+              2-3-2) If not timeout, 
+                        delete the message, send the PUB ACK to publisher(client)
+           
+        3) When the publisher(client) also have a timeout, 
+          It resend the PUB message with DUP=1 and same PID(?)
+           
+
+
+        * RESEND [ 2.3.1 in the MQTT 3.11 ]
+        If a client re-send a pub packet, then it MUST used the same PID. 
+   */
+    void handle_publish_with_QoS_1(){
+        /**
+            PUB ACK -----------
+            byte 1 : Type[0:4]
+            byte 2 : Remaining Length = 2
+            byte 3 : Packet Identifier MSB
+            byte 4 : Packet Identifier LSB
+        
+            1) When a broker get the msg with QoS 1, 
+            2) the broker send the msg to all subscriber immediately
+            3) wait for the all PUB ACK from the subscribers.   
+            4) replies with a PUB ACK to the publisher(client).
+            
+            **At least once
+            -> When the publishing client does not get the PUB ACK in a reasonable amount of time,
+             the client RESEND the PUB msg to the broker.  
+            -> Then broker have already deleted the before msg. so RESEND the duplicated msg to sub. 
+              
+        */
+        
+
+
+    }
+
     /**
         PINGREQ packet is sent from a client.
 

@@ -25,6 +25,17 @@ public:
         return static_cast<MessageType>(type);
     }   
 
+    static int get_QoS_level(char *buf){
+        unsigned char off = 3;
+        unsigned char QoS = (unsigned char)(buf[0]>>1) & off;
+
+        return static_cast<int>(QoS);
+    }
+    
+    static bool hasRetainFlag(char *buf){
+        unsigned char off = 1;
+        return (unsigned char)(buf[0]) & off; 
+    }
 
 
 private:

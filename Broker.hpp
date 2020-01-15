@@ -332,22 +332,28 @@ private:
         uint16_t topicLength = ntohs( *(uint16_t*)&payload[4]); // read payload[4][5]
 
 
-        // Get topic string!!
+        // 1) Get topic string!!
         std::string topic(payload+6, topicLength);
         std::cout<<topic<<std::endl;
         
-        //store the tocic info and corresponding connection
+        /** 2) store the tocic info to the TopicTree and corresponding connection 
+        ---------------------------------------------------------------------------*/
         Node* nnode = topicTree.subscribe(conn, topic);    
         connManager.add_mapping_info(conn->get_cid(), nnode);
         
-        // send Sub Ack packet 
-        uint8_t subAck = static_cast<uint8_t>(MessageType::SUBACK); // 9 
-        
+        /** 3) send Sub Ack packet 
+        ----------------------------------------------------------------------------*/
+        uint8_t subAck = static_cast<uint8_t>(MessageType::SUBACK); // 9        
         static uint8_t subOk[] = {subAck<<4, 3, payload[2], payload[3], 0}; // 8 bits size
         char* reply = reinterpret_cast<char*>(subOk);
-        
-        conn->sendMessage(reply, 5);
-        //write(cli_fd, reply, 5);         
+ 
+        conn->sendMessage(reply, 5);    
+    
+        /** 4) Send RETAINED messages if any.
+        ----------------------------------------------------------------------------*/
+        // topic & conn 
+        // sendRetainedMessage(topic, conn); 
+
     }
     
     /**
@@ -375,19 +381,21 @@ private:
             - Payload : application message itself 
         */
         
+
         // 1) Parse topic and application message
         // -------------------------------------------------------
         unsigned char   remainingLength = (unsigned char)buf[1];
         uint16_t        topicLength = ntohs(*(uint16_t*)&buf[2]);
         
         std::string     topic(buf+4, topicLength);
-        int             QoS = get_QoS_level(buf);
+        int             QoS = Message::get_QoS_level(buf);
         int             offset;
         
-        
+        /** 2) Parse the QoS level
+        -------------------------------------------------------------*/        
         if(QoS == 0){
             offset = 2+2+static_cast<int>(topicLength);
-        }else if(QoS == 1{
+        }else if(QoS == 1){
             offset = 2+4+static_cast<int>(topicLength);
             
             // Parse the Packet Id
@@ -402,7 +410,18 @@ private:
         // -------------------------------------------------------
         std::cout<<"topic : "<<topic<<"\n message : "<<app_message<<std::endl;
         topicTree.publish(topicTree.getRootNode(), topic,buf, buf_size);        
-         
+
+
+        /** 3) Check whether a Retain flag has been set.
+            store the topic and message.
+        -----------------------------------------------------------*/
+        bool isRetained = Message::hasRetainFlag(buf);
+        if(isRetained){
+            printf("retained \n");
+            // setRetatinedMessage(topic, app_message, buf, buf_size);    
+        }
+
+        
     }
    
    /**
@@ -475,15 +494,6 @@ private:
         
         close(cli_fd);
         epoll_ctl(epfd, EPOLL_CTL_DEL, cli_fd, NULL);
-    }
-
-    int get_QoS_level(char *buf){
-        unsigned char off = 3;
-        unsigned char QoS = (unsigned char)(buf[0]>>1) & off;
-
-        //std::cout<<"QoS is "<<static_cast<int>(QoS)<<std::endl;
-        
-        return static_cast<int>(QoS);
     }
 
     int epoll_add(const int fd){

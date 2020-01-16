@@ -21,6 +21,7 @@
 #include "Connection.hpp"
 #include "ConnectionManager.hpp"
 #include "TopicTree.hpp"
+#include "MessageManager.hpp"
 
 /**
 
@@ -37,7 +38,7 @@ http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc385349278
 class Broker{
 public:
     Broker()
-    :MAX_EVENTS(100){
+    :MAX_EVENTS(100), msgManager(false){
         int res;
         
         // 1) make epoll fd 
@@ -69,8 +70,7 @@ public:
             */
             printf("epoll wait called\n");
             nEvents = epoll_wait(epfd, events, MAX_EVENTS, -1);
-            //printf("epoll_wait wake with [%d] events\n", nEvents);
-            
+             
             for(i=0; i< nEvents; i++)
             {   
                 /**
@@ -352,7 +352,7 @@ private:
         /** 4) Send RETAINED messages if any.
         ----------------------------------------------------------------------------*/
         // topic & conn 
-        // sendRetainedMessage(topic, conn); 
+        msgManager.sendRetainedMessage(topic, conn); 
 
     }
     
@@ -418,7 +418,7 @@ private:
         bool isRetained = Message::hasRetainFlag(buf);
         if(isRetained){
             printf("retained \n");
-            // setRetatinedMessage(topic, app_message, buf, buf_size);    
+            msgManager.setRetainedMessage(topic, app_message, buf, buf_size);    
         }
 
         
@@ -511,6 +511,7 @@ private:
     const int MAX_EVENTS;
     TopicTree topicTree;
     ConnectionManager connManager;
+    MessageManager msgManager;
 };
 
 

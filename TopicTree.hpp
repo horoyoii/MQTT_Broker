@@ -59,6 +59,7 @@ public:
     */    
     Node* subscribe(ConnectionPtr conn, std::string topics){
         Node* cur = root;
+        Node* child;
 
         for(int i=0; i<topics.length(); i++){
             int start = i;
@@ -70,17 +71,20 @@ public:
             /** 1) process the topic
                 move the child node if exists or create one   
              ---------------------------------------------------- */    
-            std::unordered_map<std::string, Node*>::iterator iter =  (cur->children).find(topic);      
-            
-            if(iter == (cur->children).end()){
+            child =  cur->find_child(topic); 
+            if(child == nullptr){
+                // If not exist
+                cur = cur->make_child(topic);
+                
+                /**
                 Node* newNode = new Node(topic);
-                //TODO : encapsulate the two codes below
                 newNode->parent = cur;
                 (cur->children).insert(make_pair(topic, newNode));
-                 
                 cur = newNode;
+                */
+                 
             }else{
-                cur = iter->second; // second type is Node* 
+                cur = child; 
             }
 
         }
@@ -106,7 +110,6 @@ public:
             while(topics[i] != '/' && i < topics.length()){
                 i++;
             }
-
             
             /**
                 1) Find the multi level wildcard(#)

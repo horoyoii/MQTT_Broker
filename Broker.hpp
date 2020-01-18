@@ -352,7 +352,7 @@ private:
         /** 4) Send RETAINED messages if any.
         ----------------------------------------------------------------------------*/
         // topic & conn 
-        msgManager.sendRetainedMessage(topic, conn); 
+        msgManager.sendRetainedMessage(msgManager.getRootNode(), topic, conn); 
 
     }
     

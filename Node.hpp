@@ -7,39 +7,45 @@
 
 
 class Node{
-public:
+private: 
     std::string                                 topic;
     std::unordered_map<std::string, Node*>      children;
+    Node* parent;
+public:
+    
+    // for Tnode
     std::unordered_map<int, ConnectionPtr>      subscribers;
 
-    Node* parent;
-        
+    // for all
     Node();
-
     Node(std::string topic);
 
-    /**
-        Find the child of the topic.
-        @return the Node pointer of the topic. if not exists, nullptr is returned.
-
-        Based on this function, TopicTree.publish function will determine whether 
-        continue to traverse or make a new node.
-
-    */    
+   // for all
    Node* find_child(std::string topic); 
     
+
    void send_message(char* buf, ssize_t buf_size);
 
+   // for Tnode
    void add_subscriber(ConnectionPtr conn);
-    
+   
+   // for all 
+   Node* make_child(std::string topic); 
+        
+   // for Tnode
    void remove_subscriber(int cid);
+   
+   // for Tnode
    void remove_child(std::string topic);
 
+   // for all
    Node* getParent();
    std::string getTopic();
-    
+   
+   // for Tnode 
    bool hasSubscriber();
 
+   // for all
    bool hasChildren();  
 
     ~Node();

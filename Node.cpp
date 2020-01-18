@@ -23,6 +23,14 @@ Node* Node::find_child(std::string topic){
 }
 
 
+Node* Node::make_child(std::string topic){
+    Node* newNode = new Node(topic);
+    newNode->parent = this;
+    
+    children.insert({topic, newNode});
+
+    return newNode;
+}
 
 void Node::send_message(char* buf, ssize_t buf_size){     
     

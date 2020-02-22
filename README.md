@@ -37,10 +37,24 @@ Linux's epoll based mqtt broker
 
   * support only QoS 0  
   * Linux specific  
+  * Didn't benchmark it  
+  
 
 ## Compliation  
 
    
+## For simple test  
+
+```c++
+#include "Broker.hpp"
+
+int main(int argc, char*[]) {    
+    Broker broker;
+    broker.run();
+    
+    return 0;
+}
+```
   
 
 

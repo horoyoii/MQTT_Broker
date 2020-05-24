@@ -23,17 +23,7 @@
 #include "TopicTree.hpp"
 #include "MessageManager.hpp"
 
-/**
 
-[epoll server 구현] - NON_BLOCKING 모드 
-https://github.com/hnakamur/luajit-examples/blob/master/socket/c/epoll-server.c
-
-[mqtt broker reference]
-https://github.com/ayourtch/uTT
-
-[MQTT packet 분석 사이트 ]
-http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc385349278
-*/
 
 class Broker{
 public:
